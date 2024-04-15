@@ -37,7 +37,12 @@ func main() {
 						return err
 					}
 
-					err = loginAndPrintLastBill(username, password)
+					dollarAmt, err := getLastPgeDollarAmount(username, password)
+					if err != nil {
+						return err
+					}
+
+					fmt.Println(dollarAmt)
 					return err
 				},
 			},
@@ -61,7 +66,7 @@ func readPassword() (string, error) {
 	return password, err
 }
 
-func loginAndPrintLastBill(username, password string) error {
+func getLastPgeDollarAmount(username, password string) (string, error) {
 	// login to PGE
 	// get the last bill amount
 	pw, err := playwright.Run()
@@ -120,7 +125,6 @@ func loginAndPrintLastBill(username, password string) error {
 	if dollarAmount == "" {
 		log.Fatalf("could not find dollar amount in text: %v", text)
 	}
-	fmt.Println(dollarAmount)
 
 	if err = browser.Close(); err != nil {
 		log.Fatalf("could not close browser: %v", err)
@@ -128,7 +132,7 @@ func loginAndPrintLastBill(username, password string) error {
 	if err = pw.Stop(); err != nil {
 		log.Fatalf("could not stop Playwright: %v", err)
 	}
-	return err
+	return dollarAmount, err
 }
 
 func PrettyJson(v interface{}) string {
