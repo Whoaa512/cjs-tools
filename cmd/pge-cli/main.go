@@ -11,15 +11,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"regexp"
+	"strconv"
 
+	"github.com/anvari1313/splitwise.go"
+	"github.com/charmbracelet/charm/kv"
 	"github.com/charmbracelet/huh"
 	"github.com/playwright-community/playwright-go"
 	"github.com/urfave/cli/v2"
+	"github.com/whoaa512/cjs-tools/pkg/collections"
 )
 
 func main() {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	app := &cli.App{
 		Commands: []*cli.Command{
 			{
@@ -42,11 +48,110 @@ func main() {
 						return err
 					}
 
-					fmt.Println(dollarAmt)
+					logger.Info("Last bill amount", "dollarAmt", dollarAmt)
+
+					return err
+				},
+			},
+			{
+				Name:  "add-expense",
+				Usage: "Add an expense to Splitwise",
+				Action: func(c *cli.Context) error {
+					var err error
+					db, err := kv.OpenWithDefaults("charm.sh.kv.user.default")
+					if err != nil {
+						return err
+					}
+
+					v, _ := db.Get([]byte("splitwise_api_key"))
+
+					apiKey := string(v)
+					if apiKey == "" {
+						apiKey = os.Getenv("SPLITWISE_API_KEY")
+					}
+					if apiKey == "" {
+						err = huh.NewInput().Title("Splitwise API Key").Value(&apiKey).Run()
+					}
+					if err != nil {
+						return err
+					}
+					if apiKey != "" {
+						_ = db.Set([]byte("splitwise_api_key"), []byte(apiKey))
+					} else {
+						return fmt.Errorf("Splitwise API Key is required")
+					}
+					client := splitwise.NewClient(
+						splitwise.NewAPIKeyAuth(apiKey),
+					)
+
+					rawGroups, err := client.Groups(c.Context)
+					if err != nil {
+						return err
+					}
+
+					groupOptions := collections.Map(func(g splitwise.Group) huh.Option[int] {
+						return huh.Option[int]{Key: g.Name, Value: int(g.ID)}
+					}, rawGroups)
+
+					var chosenGroupId int
+					v, _ = db.Get([]byte("last_used_splitwise_group_id"))
+					if v != nil {
+						prevGroupId, err := strconv.Atoi(string(v))
+						if err == nil {
+							chosenGroupId = prevGroupId
+						}
+					}
+
+					if chosenGroupId == 0 {
+						err = huh.NewSelect[int]().
+							Title("Select Group").
+							Options(groupOptions...).
+							Validate(func(i int) error {
+								if i == 0 {
+									return fmt.Errorf("Group selection is required")
+								}
+								return nil
+							}).
+							Value(&chosenGroupId).
+							Run()
+
+						if err != nil {
+							return err
+						}
+					}
+
+					group, ok := collections.Find(func(g splitwise.Group) bool {
+						return int(g.ID) == chosenGroupId
+					}, rawGroups)
+					if !ok {
+						return fmt.Errorf("Group not found")
+					}
+
+					exps, err := client.CreateExpenseSplitEqually(
+						c.Context,
+						splitwise.ExpenseSplitEqually{
+							Expense: splitwise.Expense{
+								Cost:         "420.69",
+								GroupId:      uint32(group.ID),
+								CurrencyCode: "USD",
+								Date:         "2024-04-15",
+								Description:  "CJ testing",
+							},
+							SplitEqually: true,
+						},
+					)
+					if err != nil {
+						return fmt.Errorf("Error creating expense: %w", err)
+					}
+
+					fmt.Printf("%v", PrettyJson(exps))
+					// https://github.com/anvari1313/splitwise.go/blob/main/groups.go
+
 					return err
 				},
 			},
 		},
+		// Command to use the Splitwise API to add an expense
 	}
 
 	err := app.Run(os.Args)
@@ -138,7 +243,15 @@ func getLastPgeDollarAmount(username, password string) (string, error) {
 func PrettyJson(v interface{}) string {
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
-		return fmt.Sprintf("%v", v)
+		b, _ = json.MarshalIndent(
+			map[string]string{"error": "error marshalling json: " + err.Error()},
+			"",
+			"  ",
+		)
 	}
 	return string(b)
+}
+
+func addSplitwiseExpense(dollarAmt string) error {
+	return nil
 }
