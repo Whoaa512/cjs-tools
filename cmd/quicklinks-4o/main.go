@@ -171,7 +171,7 @@ func loadLinks() {
 	if _, err := os.Stat(dbFile); os.IsNotExist(err) {
 		return // File does not exist
 	}
-	jsonData, err := ioutil.ReadFile(dbFile)
+	jsonData, err := os.ReadFile(dbFile)
 	if err != nil {
 		log.Fatalf("Error reading from file: %v", err)
 	}
