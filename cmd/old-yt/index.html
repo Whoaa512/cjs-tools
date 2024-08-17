@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Time Range Search</title>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    form {
+      margin-bottom: 20px;
+    }
+
+    input,
+    button {
+      margin: 5px 0;
+    }
+
+    #results {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .video {
+      width: 300px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>YouTube Time Range Search</h1>
+  <form hx-post="/search" hx-target="#results">
+    <input type="text" name="query" placeholder="Search query" required>
+    <input type="date" name="startDate" required>
+    <input type="date" name="endDate" required>
+    <button type="submit">Search</button>
+  </form>
+  <div id="results"></div>
+</body>
+
+</html>
